@@ -1,6 +1,6 @@
 {
     "name": "@solana/codecs-core",
-    "version": "2.0.0-rc.0",
+    "version": "2.0.0-rc.1",
     "description": "Core types and helpers for encoding and decoding byte arrays on Solana",
     "exports": {
         "browser": {
@@ -70,7 +70,7 @@
         "@solana/errors": "workspace:*"
     },
     "devDependencies": {
-        "tinybench": "^2.8.0"
+        "tinybench": "^2.9.0"
     },
     "peerDependencies": {
         "typescript": ">=5"

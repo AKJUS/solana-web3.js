@@ -1,6 +1,6 @@
 {
     "name": "@solana/transaction-confirmation",
-    "version": "2.0.0-rc.0",
+    "version": "2.0.0-rc.1",
     "description": "Helpers for confirming Solana transactions",
     "exports": {
         "browser": {
@@ -69,6 +69,7 @@
         "@solana/codecs-strings": "workspace:*",
         "@solana/errors": "workspace:*",
         "@solana/keys": "workspace:*",
+        "@solana/promises": "workspace:*",
         "@solana/rpc": "workspace:*",
         "@solana/rpc-subscriptions": "workspace:*",
         "@solana/rpc-types": "workspace:*",

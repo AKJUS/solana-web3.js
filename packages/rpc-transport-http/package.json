@@ -1,6 +1,6 @@
 {
     "name": "@solana/rpc-transport-http",
-    "version": "2.0.0-rc.0",
+    "version": "2.0.0-rc.1",
     "description": "An RPC transport that uses HTTP requests",
     "exports": {
         "browser": {
@@ -69,8 +69,8 @@
         "undici-types": "^6.19.5"
     },
     "devDependencies": {
-        "tinybench": "^2.8.0",
-        "undici": "^6.19.4",
+        "tinybench": "^2.9.0",
+        "undici": "^6.19.5",
         "zx": "^8.1.4"
     },
     "peerDependencies": {

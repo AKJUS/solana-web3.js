@@ -1,3 +1,5 @@
+import '@solana/test-matchers/toBeFrozenObject';
+
 import {
     exportKeyPolyfill,
     generateKeyPolyfill,
@@ -17,10 +19,12 @@ const MOCK_SECRET_KEY_BYTES = new Uint8Array([
     83, 147, 250, 112, 140, 37, 29, 73, 156, 38, 185, 76, 163, 8, 178, 225, 172, 53, 120, 108, 127, 191, 103, 8, 160,
     170, 183, 186, 246, 1, 227, 158,
 ]);
+const MOCK_SECRET_KEY_BASE_64_URL = 'U5P6cIwlHUmcJrlMowiy4aw1eGx_v2cIoKq3uvYB454';
 const MOCK_PUBLIC_KEY_BYTES = new Uint8Array([
     166, 132, 114, 186, 49, 163, 23, 12, 11, 14, 119, 219, 102, 96, 26, 226, 91, 97, 238, 217, 236, 84, 232, 204, 62,
     212, 179, 252, 20, 37, 179, 52,
 ]);
+const MOCK_PUBLIC_KEY_BASE_64_URL = 'poRyujGjFwwLDnfbZmAa4lth7tnsVOjMPtSz_BQlszQ';
 const ED25519_PKCS8_HEADER =
     // prettier-ignore
     [
@@ -56,7 +60,7 @@ const ED25519_PKCS8_HEADER =
     ];
 
 describe('exportKeyPolyfill', () => {
-    it.each(['jwk', 'spki'] as const)('throws an unimplemented error when the format is %s', async format => {
+    it.each(['spki'] as const)('throws an unimplemented error when the format is %s', async format => {
         expect.assertions(1);
         const mockKey = { format } as unknown as CryptoKey;
         await expect(exportKeyPolyfill(format, mockKey)).rejects.toThrow(/unimplemented/);
@@ -151,6 +155,59 @@ describe('exportKeyPolyfill', () => {
                         160, 170, 183, 186, 246, 1, 227, 158,
             ]);
             await expect(exportKeyPolyfill('pkcs8', privateKey)).resolves.toEqual(expectedBytes);
+        });
+    });
+    describe('when format is `jwk`', () => {
+        it('exports public keys', async () => {
+            expect.assertions(1);
+            jest.spyOn(globalThis.crypto, 'getRandomValues').mockReturnValue(MOCK_SECRET_KEY_BYTES);
+            const { publicKey } = generateKeyPolyfill(/* extractable */ false, ['sign', 'verify']);
+            const jwk = await exportKeyPolyfill('jwk', publicKey);
+            expect(jwk).toEqual({
+                crv /* curve */: 'Ed25519',
+                ext /* extractable */: true,
+                key_ops /* key operations */: ['verify'],
+                kty /* key type */: 'OKP' /* octet key pair */,
+                x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+            });
+        });
+        it('exports private keys', async () => {
+            expect.assertions(1);
+            jest.spyOn(globalThis.crypto, 'getRandomValues').mockReturnValue(MOCK_SECRET_KEY_BYTES);
+            const { privateKey } = generateKeyPolyfill(/* extractable */ true, ['sign', 'verify']);
+            const jwk = await exportKeyPolyfill('jwk', privateKey);
+            expect(jwk).toEqual({
+                crv /* curve */: 'Ed25519',
+                d /* private key (base64-URL encoded) */: MOCK_SECRET_KEY_BASE_64_URL,
+                ext /* extractable */: true,
+                key_ops /* key operations */: ['sign'],
+                kty /* key type */: 'OKP' /* octet key pair */,
+                x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+            });
+        });
+        it('freezes the exported public key', async () => {
+            expect.assertions(1);
+            jest.spyOn(globalThis.crypto, 'getRandomValues').mockReturnValue(MOCK_SECRET_KEY_BYTES);
+            const { publicKey } = generateKeyPolyfill(/* extractable */ false, ['sign', 'verify']);
+            const jwk = await exportKeyPolyfill('jwk', publicKey);
+            expect(jwk).toBeFrozenObject();
+        });
+        it('freezes the exported private key', async () => {
+            expect.assertions(1);
+            jest.spyOn(globalThis.crypto, 'getRandomValues').mockReturnValue(MOCK_SECRET_KEY_BYTES);
+            const { privateKey } = generateKeyPolyfill(/* extractable */ true, ['sign', 'verify']);
+            const jwk = await exportKeyPolyfill('jwk', privateKey);
+            expect(jwk).toBeFrozenObject();
+        });
+        it('throws when the public key supplied is non-extractable', async () => {
+            expect.assertions(1);
+            const mockKey = { extractable: false, type: 'public' } as unknown as CryptoKey;
+            await expect(exportKeyPolyfill('jwk', mockKey)).rejects.toThrow('key is not extractable');
+        });
+        it('throws when the private key supplied is non-extractable', async () => {
+            expect.assertions(1);
+            const mockKey = { extractable: false, type: 'private' } as unknown as CryptoKey;
+            await expect(exportKeyPolyfill('jwk', mockKey)).rejects.toThrow('key is not extractable');
         });
     });
 });
@@ -319,8 +376,327 @@ describe('importKeyPolyfill', () => {
         });
     });
 
-    it.each(['jwk', 'spki'] as KeyFormat[])('fatals when format is %s', format => {
-        expect(() => importKeyPolyfill(format, new Uint8Array(), false, ['sign'])).toThrow(/format is unimplemented/);
+    describe('when format is `jwk`', () => {
+        it('creates public key CryptoKey instances', () => {
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['verify'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['verify'],
+            );
+            expect(key).toEqual({
+                [Symbol.toStringTag]: 'CryptoKey',
+                algorithm: { name: 'Ed25519' },
+                extractable: false,
+                type: 'public',
+                usages: ['verify'],
+            });
+        });
+        it('creates private key CryptoKey instances', () => {
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    d /* private key (base64-URL encoded) */: MOCK_SECRET_KEY_BASE_64_URL,
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['sign'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['sign'],
+            );
+            expect(key).toEqual({
+                [Symbol.toStringTag]: 'CryptoKey',
+                algorithm: { name: 'Ed25519' },
+                extractable: false,
+                type: 'private',
+                usages: ['sign'],
+            });
+        });
+        it('freezes the CryptoKey public key', () => {
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['verify'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['verify'],
+            );
+            expect(key).toBeFrozenObject();
+        });
+        it('freezes the CryptoKey private key', () => {
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    d /* private key (base64-URL encoded) */: MOCK_SECRET_KEY_BASE_64_URL,
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['sign'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['sign'],
+            );
+            expect(key).toBeFrozenObject();
+        });
+        it('can verify a correct signature using the imported public key', async () => {
+            expect.assertions(1);
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['verify'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['verify'],
+            );
+            await expect(verifyPolyfill(key, MOCK_DATA_SIGNATURE, MOCK_DATA)).resolves.toBe(true);
+        });
+        it('can identify a bad signature using the imported public key', async () => {
+            expect.assertions(1);
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['verify'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['verify'],
+            );
+            const badSignature = new Uint8Array(Array(64).fill(0));
+            await expect(verifyPolyfill(key, badSignature, MOCK_DATA)).resolves.toBe(false);
+        });
+        it('can sign using the imported private key', async () => {
+            expect.assertions(1);
+            const key = importKeyPolyfill(
+                'jwk',
+                {
+                    crv /* curve */: 'Ed25519',
+                    d /* private key (base64-URL encoded) */: MOCK_SECRET_KEY_BASE_64_URL,
+                    ext /* extractable */: false,
+                    key_ops /* key operations */: ['sign'],
+                    kty /* key type */: 'OKP' /* octet key pair */,
+                    x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                },
+                false,
+                ['sign'],
+            );
+            await expect(signPolyfill(key, MOCK_DATA)).resolves.toStrictEqual(MOCK_DATA_SIGNATURE);
+        });
+        it('can import and re-export the same public key', async () => {
+            expect.assertions(1);
+            const originalJwk = {
+                crv /* curve */: 'Ed25519',
+                d /* private key (base64-URL encoded) */: MOCK_SECRET_KEY_BASE_64_URL,
+                ext /* extractable */: true,
+                key_ops /* key operations */: ['sign'],
+                kty /* key type */: 'OKP' /* octet key pair */,
+                x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+            };
+            const key = importKeyPolyfill('jwk', originalJwk, true, ['sign']);
+            const exportedJwk = await exportKeyPolyfill('jwk', key);
+            expect(exportedJwk).toEqual(originalJwk);
+        });
+        it('can import and re-export the same private key', async () => {
+            expect.assertions(1);
+            const originalJwk = {
+                crv /* curve */: 'Ed25519',
+                ext /* extractable */: true,
+                key_ops /* key operations */: ['verify'],
+                kty /* key type */: 'OKP' /* octet key pair */,
+                x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+            };
+            const key = importKeyPolyfill('jwk', originalJwk, true, ['verify']);
+            const exportedJwk = await exportKeyPolyfill('jwk', key);
+            expect(exportedJwk).toEqual(originalJwk);
+        });
+        it('can import a public key that was exported from a native generated key', async () => {
+            expect.assertions(1);
+            const { publicKey } = (await crypto.subtle.generateKey('Ed25519', /* extractable */ false, [
+                'verify',
+                'sign',
+            ])) as CryptoKeyPair;
+            const jwk = await crypto.subtle.exportKey('jwk', publicKey);
+            expect(() => importKeyPolyfill('jwk', jwk, true, ['verify'])).not.toThrow();
+        });
+        it('can import a private key that was exported from a native generated key', async () => {
+            expect.assertions(1);
+            const { privateKey } = (await crypto.subtle.generateKey('Ed25519', /* extractable */ true, [
+                'verify',
+                'sign',
+            ])) as CryptoKeyPair;
+            const jwk = await crypto.subtle.exportKey('jwk', privateKey);
+            expect(() => importKeyPolyfill('jwk', jwk, true, ['sign'])).not.toThrow();
+        });
+        it('can import a public key that was exported from a polyfill generated key', async () => {
+            expect.assertions(1);
+            const { publicKey } = generateKeyPolyfill(/* extractable */ false, ['verify', 'sign']);
+            const jwk = await exportKeyPolyfill('jwk', publicKey);
+            expect(() => importKeyPolyfill('jwk', jwk, true, ['verify'])).not.toThrow();
+        });
+        it('can import a private key that was exported from a polyfill generated key', async () => {
+            expect.assertions(1);
+            const { privateKey } = generateKeyPolyfill(/* extractable */ true, ['verify', 'sign']);
+            const jwk = await exportKeyPolyfill('jwk', privateKey);
+            expect(() => importKeyPolyfill('jwk', jwk, true, ['sign'])).not.toThrow();
+        });
+        it('throws when the JWK curve is not Ed25519', () => {
+            expect(() =>
+                importKeyPolyfill(
+                    'jwk',
+                    {
+                        crv /* curve */: 'Ed448',
+                        ext /* extractable */: false,
+                        key_ops /* key operations */: ['verify'],
+                        kty /* key type */: 'OKP' /* octet key pair */,
+                        x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                    },
+                    false,
+                    ['verify'],
+                ),
+            ).toThrow(/Invalid Ed25519 JWK/);
+        });
+        it('throws when the JWK key type is not OKP', () => {
+            expect(() =>
+                importKeyPolyfill(
+                    'jwk',
+                    {
+                        crv /* curve */: 'Ed25519',
+                        ext /* extractable */: false,
+                        key_ops /* key operations */: ['verify'],
+                        kty /* key type */: 'EC',
+                        x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                    },
+                    false,
+                    ['verify'],
+                ),
+            ).toThrow(/Invalid Ed25519 JWK/);
+        });
+        it('throws when the JWK key_ops do not match the key usages', () => {
+            expect(() =>
+                importKeyPolyfill(
+                    'jwk',
+                    {
+                        crv /* curve */: 'Ed25519',
+                        ext /* extractable */: false,
+                        key_ops /* key operations */: ['verify', 'sign'],
+                        kty /* key type */: 'OKP' /* octet key pair */,
+                        x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                    },
+                    false,
+                    ['verify'],
+                ),
+            ).toThrow(/Invalid Ed25519 JWK/);
+        });
+        it('throws when the JWK ext boolean do not match the extractable argument', () => {
+            expect(() =>
+                importKeyPolyfill(
+                    'jwk',
+                    {
+                        crv /* curve */: 'Ed25519',
+                        ext /* extractable */: false,
+                        key_ops /* key operations */: ['verify'],
+                        kty /* key type */: 'OKP' /* octet key pair */,
+                        x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                    },
+                    true,
+                    ['verify'],
+                ),
+            ).toThrow(/Invalid Ed25519 JWK/);
+        });
+        it.each(['sign', 'decrypt', 'deriveBits', 'deriveKey', 'encrypt', 'unwrapKey', 'wrapKey'] as KeyUsage[])(
+            'throws when a public key is trying to use the `%s` usage',
+            usage => {
+                expect(() =>
+                    importKeyPolyfill(
+                        'jwk',
+                        {
+                            crv /* curve */: 'Ed25519',
+                            ext /* extractable */: false,
+                            key_ops /* key operations */: [usage],
+                            kty /* key type */: 'OKP' /* octet key pair */,
+                            x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                        },
+                        false,
+                        [usage],
+                    ),
+                ).toThrow('Unsupported key usage for a Ed25519 key');
+            },
+        );
+        it.each(['verify', 'decrypt', 'deriveBits', 'deriveKey', 'encrypt', 'unwrapKey', 'wrapKey'] as KeyUsage[])(
+            'throws when a private key is trying to use the `%s` usage',
+            usage => {
+                expect(() =>
+                    importKeyPolyfill(
+                        'jwk',
+                        {
+                            crv /* curve */: 'Ed25519',
+                            d /* private key (base64-URL encoded) */: MOCK_SECRET_KEY_BASE_64_URL,
+                            ext /* extractable */: false,
+                            key_ops /* key operations */: [usage],
+                            kty /* key type */: 'OKP' /* octet key pair */,
+                            x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                        },
+                        false,
+                        [usage],
+                    ),
+                ).toThrow('Unsupported key usage for a Ed25519 key');
+            },
+        );
+        it('throws when a public key is missing the `x` property', () => {
+            expect(() =>
+                importKeyPolyfill(
+                    'jwk',
+                    {
+                        crv /* curve */: 'Ed25519',
+                        ext /* extractable */: false,
+                        key_ops /* key operations */: ['verify'],
+                        kty /* key type */: 'OKP' /* octet key pair */,
+                    },
+                    false,
+                    ['verify'],
+                ),
+            ).toThrow(/Ed25519 JWK is missing public key coordinates/);
+        });
+        it('throws when a private key is missing the `d` property', () => {
+            expect(() =>
+                importKeyPolyfill(
+                    'jwk',
+                    {
+                        crv /* curve */: 'Ed25519',
+                        d: /* private key (base64-URL encoded) */ undefined,
+                        ext /* extractable */: false,
+                        key_ops /* key operations */: ['sign'],
+                        kty /* key type */: 'OKP' /* octet key pair */,
+                        x /* public key x-coordinate (base64-URL encoded) */: MOCK_PUBLIC_KEY_BASE_64_URL,
+                    },
+                    false,
+                    ['sign'],
+                ),
+            ).toThrow(/Ed25519 JWK is missing private key coordinates/);
+        });
+    });
+
+    it('fatals when format is spki', () => {
+        expect(() => importKeyPolyfill('spki', new Uint8Array(), false, ['sign'])).toThrow(/format is unimplemented/);
     });
 });
 

@@ -1,6 +1,6 @@
 {
     "name": "@solana/codecs-strings",
-    "version": "2.0.0-rc.0",
+    "version": "2.0.0-rc.1",
     "description": "Codecs for strings of different sizes and encodings",
     "exports": {
         "browser": {
@@ -73,7 +73,7 @@
     },
     "devDependencies": {
         "@solana/text-encoding-impl": "workspace:*",
-        "tinybench": "^2.8.0"
+        "tinybench": "^2.9.0"
     },
     "peerDependencies": {
         "fastestsmallesttextencoderdecoder": "^1.0.22",
