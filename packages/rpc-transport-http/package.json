@@ -70,8 +70,8 @@
     },
     "devDependencies": {
         "tinybench": "^2.8.0",
-        "undici": "^6.19.4",
-        "zx": "^8.1.4"
+        "undici": "^6.24.0",
+        "zx": "^8.8.5"
     },
     "peerDependencies": {
         "typescript": ">=5"
